@@ -20,6 +20,8 @@
 
 #include <sys/byteorder.h>
 
+#include "common.h"
+
 #define SCAN_INTERVAL 0x0140 /* 200 ms */
 #define SCAN_WINDOW   0x0030 /* 30 ms */
 #define INIT_INTERVAL 0x0010 /* 10 ms */
@@ -79,20 +81,28 @@ enum BGM_RESP_IDX
 
 
 
-static void start_scan(void);
 
-// static struct bt_conn *default_conn;
+
+
+
+static void start_scan();
+
+
 static uint8_t volatile conn_count;
 static uint8_t volatile conn_index;
 static bool volatile is_disconnecting;
 static bool volatile is_discovering;
+static int volatile default_opcode;
+
 
 
 
 static struct bt_uuid_16 uuid;
+static char *bgm_address[CONFIG_BT_MAX_CONN];
 static struct bt_conn *connections[CONFIG_BT_MAX_CONN];
 static struct bt_gatt_discover_params discover_params;
 static struct bt_gatt_subscribe_params subscribe_params[CONFIG_BT_MAX_CONN];
+
 
 uint8_t eight_records[MAX_EIGHT_DATA];  
 int top = -1;
@@ -180,6 +190,7 @@ void push(uint8_t* arr, uint8_t data) {
 		arr[top] = data;
 	}
 }
+
 
 
 void write_cb(struct bt_conn* conn, uint8_t err,
@@ -507,6 +518,7 @@ static bool eir_found(struct bt_data *data, void *user_data)
 				continue;
 			}
 
+	
 			err = bt_le_scan_stop();
 			if (err) {
 				printk("Stop LE scan failed (err %d)\n", err);
@@ -514,25 +526,62 @@ static bool eir_found(struct bt_data *data, void *user_data)
 			}
 
 
-			struct bt_conn *temp_conn;
-			err = bt_conn_le_create(addr, &create_param, &conn_param,
-				&temp_conn);
-
-			if (err) {
-				char dest[BT_ADDR_LE_STR_LEN];
-				bt_addr_le_to_str (addr, dest, sizeof(dest));
-				printk("Create conn failed (err %d) address: %s\n", err,dest);
-				start_scan();
-			}else{
-				conn_index = bt_conn_index(temp_conn);
-				char addr[BT_ADDR_LE_STR_LEN];
-				bt_addr_le_to_str(bt_conn_get_dst(temp_conn), addr, sizeof(addr));
 			
-				printk("temp conn index:%u %s\n",conn_index,addr);
-				connections[conn_index] = temp_conn;
-				temp_conn = NULL;
-				return false;
-			}
+			
+
+			switch (default_opcode)
+			{
+				case BLE_GET_BGM_ADDR:
+				{	
+					char dest[BT_ADDR_LE_STR_LEN];
+			
+					// printk("in %s\n",dest);
+
+					start_scan();
+					break;
+				}
+				case BLE_STOP_SCAN:
+				{	
+					break;
+				}
+
+				case BLE_BGM_CONN:
+				{
+					struct bt_conn *temp_conn;
+					err = bt_conn_le_create(addr, &create_param, &conn_param,
+						&temp_conn);
+
+					if (err) {
+						char dest[BT_ADDR_LE_STR_LEN];
+						bt_addr_le_to_str (addr, dest, sizeof(dest));
+						printk("Create conn failed (err %d) address: %s\n", err,dest);
+						start_scan();
+					}else{
+						conn_index = bt_conn_index(temp_conn);
+						char addr[BT_ADDR_LE_STR_LEN];
+						bt_addr_le_to_str(bt_conn_get_dst(temp_conn), addr, sizeof(addr));
+					
+						printk("temp conn index:%u %s\n",conn_index,addr);
+						connections[conn_index] = temp_conn;
+						temp_conn = NULL;
+						return false;
+					}
+					
+					break;
+				}
+
+				default:
+				{	
+					start_scan();
+					break;
+				}
+
+			}	
+
+	
+
+
+		
 
 			return false;
 		}
@@ -554,6 +603,10 @@ static void device_found(const bt_addr_le_t *addr, int8_t rssi, uint8_t type,
 	
 	if (type == BT_GAP_ADV_TYPE_ADV_IND ||
 	    type == BT_GAP_ADV_TYPE_ADV_DIRECT_IND) {
+
+
+
+			 
 		bt_data_parse(ad, eir_found, (void *)addr);
 	/* We're only interested in connectable events */
 	}else if (type != BT_GAP_ADV_TYPE_ADV_IND &&
@@ -564,7 +617,7 @@ static void device_found(const bt_addr_le_t *addr, int8_t rssi, uint8_t type,
 }
 
 
-static void start_scan(void)
+static void start_scan()
 {
 	int err;
 
@@ -787,6 +840,20 @@ static void disconnect(struct bt_conn *conn, void *data)
 
 
 
+
+void ble_action(int opcode){
+	
+	//if last action was stop scan ,it will rescan ble devices.
+	if (default_opcode == BLE_STOP_SCAN){
+		start_scan();
+	}
+
+	default_opcode = opcode;
+
+}
+
+
+
 void ble_init(void)
 {
 	int err;
@@ -802,28 +869,28 @@ void ble_init(void)
 	printk("Bluetooth initialized\n");
 	
 
-	uint8_t iterations = 5;
-	while (true) {
-		while (conn_count < CONFIG_BT_MAX_CONN) {
-			k_sleep(K_SECONDS(1));
-		}
+	// uint8_t iterations = 5;
+	// while (true) {
+	// 	while (conn_count < CONFIG_BT_MAX_CONN) {
+	// 		k_sleep(K_SECONDS(1));
+	// 	}
 
-		k_sleep(K_SECONDS(10));
+	// 	k_sleep(K_SECONDS(10));
 
-		if (!iterations) {
-			break;
-		}
-		iterations--;
-		printk("Iterations remaining: %u\n", iterations);
+	// 	if (!iterations) {
+	// 		break;
+	// 	}
+	// 	iterations--;
+	// 	printk("Iterations remaining: %u\n", iterations);
 
-		printk("Disconnecting all...\n");
-		is_disconnecting = true;
-		bt_conn_foreach(BT_CONN_TYPE_LE, disconnect, NULL);
+	// 	printk("Disconnecting all...\n");
+	// 	is_disconnecting = true;
+	// 	bt_conn_foreach(BT_CONN_TYPE_LE, disconnect, NULL);
 
-		while (is_disconnecting) {
-			k_sleep(K_SECONDS(1));
-		}
-	}
+	// 	while (is_disconnecting) {
+	// 		k_sleep(K_SECONDS(1));
+	// 	}
+	// }
 }
 
 

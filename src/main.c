@@ -7,6 +7,9 @@
 #include <zephyr.h>
 #include <stdio.h>
 #include <string.h>
+#include <regex.h>
+
+
 // #include <drivers/gps.h>
 // #include <drivers/sensor.h>
 #include <console/console.h>
@@ -17,9 +20,9 @@
 #include <modem/nrf_modem_lib.h>
 
 
+// #include "lte.h"
 #include "ble.h"
-#include "lte.h"
-#include "common.h"
+#include "lib/common.h"
 
 
 
@@ -44,6 +47,8 @@ enum {
 	LEDS_ERROR              = LED_ON(DK_ALL_LEDS_MSK)
 } display_state;
 
+
+
 /**@brief Callback for button events from the DK buttons and LEDs library. */
 static void button_handler(uint32_t buttons, uint32_t has_changed)
 {
@@ -54,28 +59,34 @@ static void button_handler(uint32_t buttons, uint32_t has_changed)
 	
 
 	if((bool)(buttons & SWITCH_1)){
-		ble_action(BLE_GET_BGM_ADDR);
+		ble_action(BLE_BGM_CONN);
 	}else if (!(bool)(buttons & SWITCH_1)){
 		ble_action(BLE_STOP_SCAN);
 	}
+
 }
 
+// static K_KERNEL_STACK_DEFINE(my_tcp_rx_thread_stack, 2048);
+// static struct k_thread my_tcp_rx_thread_data;
 
-static void modem_configure(void)
-{
-	display_state = LEDS_LTE_CONNECTING;
+void test(){
+	char resp[1024];
+	while (true)
+	{
+		 get_ble_resp(resp,1024);
 
-	if (IS_ENABLED(CONFIG_LTE_AUTO_INIT_AND_CONNECT)) {
-		/* Do nothing, modem is already turned on and connected. */
-	} else {
-		int err;
-
-		printk("Establishing LTE link (this may take some time) ...\n");
-		err = lte_lc_init_and_connect();
-		__ASSERT(err == 0, "LTE link could not be established.");
-		display_state = LEDS_LTE_CONNECTED;
+		 if (strlen(resp)>1){
+			 break;
+		 }
 	}
+	printk("get ble_resp\n");
+	printk("%s\n",resp);
+	char *post_data = "{\"serial_number\": \"123123\",\"device_address\": \"C2:05:09:C1:C3:00\",\"data_index\": \"1\",\"blood_glucose\": \"149\",\"marker\": \"No Meal\",\"data_time\": \"2018-1-4T8:42+08:00\"}";
+	
+	post_blood_glucose(post_data);
+	
 }
+
 
 void main(void)
 {
@@ -88,8 +99,23 @@ void main(void)
 		printk("Could not initialize buttons, err code: %d\n", err);
 	}
 
-	ble_init();
+
+
+	// printk("Waiting for network..\n");
 
 	// modem_configure();
-	// lte_get();
+
+	// printk("OK\n");
+
+
+	ble_init();
+	
+
+
+	// k_thread_create(&my_tcp_rx_thread_data, my_tcp_rx_thread_stack,
+	// 		K_KERNEL_STACK_SIZEOF(my_tcp_rx_thread_stack),
+	// 		(k_thread_entry_t)test, NULL, NULL, NULL,
+	// 		K_PRIO_PREEMPT(CONFIG_MAIN_THREAD_PRIORITY), 0, K_NO_WAIT);
+
+
 }

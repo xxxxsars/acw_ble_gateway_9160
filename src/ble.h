@@ -9,5 +9,6 @@
 
 void ble_action(int opcode);
 void ble_init(void);
+void get_ble_resp(char* resp, int buffersize);
 
 #endif /* _BLE_H_ */

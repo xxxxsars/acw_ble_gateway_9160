@@ -9,13 +9,20 @@ cmake_minimum_required(VERSION 3.20.0)
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(lte-ble-gateway)
 
-# NORDIC SDK APP START
-target_sources(app PRIVATE src/main.c)
-# NORDIC SDK APP END
-zephyr_include_directories(src)
 
+zephyr_include_directories(src)
 include_directories(src/orientation_detector)
-# target_sources(app PRIVATE src/aggregator.c)
-# target_sources(app PRIVATE src/alarm.c)
-target_sources(app PRIVATE src/ble.c)
-target_sources(app PRIVATE src/lte.c)
+
+
+# NORDIC SDK APP 
+FILE(GLOB app_sources src/*.c)
+target_sources(app PRIVATE
+	${app_sources}
+)
+
+
+# CUSTOM LIB
+FILE(GLOB app_libary src/lib/*.c)
+target_sources(app PRIVATE
+	${app_libary}
+)

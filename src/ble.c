@@ -22,7 +22,6 @@
 
 #include <sys/byteorder.h>
 
-#include "lte.h"
 #include "lib/common.h"
 
 #define SCAN_INTERVAL 0x0140 /* 200 ms */
@@ -61,8 +60,6 @@
 #define POST_DATA "{\"serial_number\": \"%s\",\"device_address\": \"%s\",\"data_index\": \"%u\",\"blood_glucose\": \"%u\",\"marker\": \"%s\",\"data_time\": \"%u-%u-%uT%u:%u%s\"}"
 
 
-
-
 enum BGM_Marker
 {
 	BEFORE_MEAL,
@@ -95,7 +92,7 @@ static uint8_t volatile conn_index;
 static bool volatile is_disconnecting;
 static bool  is_discovering;
 
-static int volatile default_opcode = BLE_BGM_CONN;
+static int volatile default_opcode;
 
 static char ble_resp[RESP_SIZE];
 static char sn[SN_SIZE];
@@ -565,7 +562,6 @@ static bool eir_found(struct bt_data *data, void *user_data)
 
 				printk("had data: %s  opcode:%d\n", ble_resp, default_opcode);
 
-				return false;
 			}
 
 			switch (default_opcode)
@@ -905,49 +901,5 @@ void ble_init(void)
 	printk("Bluetooth initialized\n");
 
 
-	
-	modem_configure();
 
-	while (true)
-	{
-		k_sleep(K_SECONDS(10));
-		while (true)
-		{
-
-			if (strlen(ble_resp) > 1)
-			{
-				post_blood_glucose(ble_resp);
-				// reset global data
-				memset(ble_resp, 0, RESP_SIZE);
-				memset(sn, 0, SN_SIZE);
-				break;
-			}
-		}
-	}
-
-
-	// uint8_t iterations = 5;
-	// while (true) {
-	// while (conn_count < CONFIG_BT_MAX_CONN) {
-	// 	k_sleep(K_SECONDS(1));
-	// }
-
-	// k_sleep(K_SECONDS(10));
-
-	// if (!iterations) {
-	// 	break;
-	// }
-	// iterations--;
-	// printk("Iterations remaining: %u\n", iterations);
-
-	// printk("Disconnecting all...\n");
-	// is_disconnecting = true;
-	// bt_conn_foreach(BT_CONN_TYPE_LE, disconnect, NULL);
-
-	// while (is_disconnecting) {
-	// 	printk("lte initial\n");
-	// 	modem_configure();
-	// 	k_sleep(K_SECONDS(1));
-	// }
-	// }
 }
